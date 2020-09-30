@@ -1,0 +1,23 @@
+{
+  "include": [],
+  "exclude": ["node_modules"],
+  "files": ["globals.d.ts", "index.d.ts"],
+  "compilerOptions": {
+    "target": "ES2019",
+    "allowJs": false,
+    "sourceMap": false,
+    "lib": ["esnext", "dom"],
+    "rootDir": "./schemas-src",
+    "outDir": "./schemas",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "newLine": "lf",
+    "noUnusedLocals": true,
+    "preserveWatchOutput": true,
+    "pretty": true,
+    "strict": true,
+    "alwaysStrict": true,
+    "noImplicitAny": false
+  }
+}

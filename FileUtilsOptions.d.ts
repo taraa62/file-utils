@@ -9,6 +9,7 @@ export interface IFindOptions {
     includeName?: IFilterConsist;
     excludeName?: IFilterConsist;
     indexOfPath?: string;
+    inFolders?: string[];
     iFind?: (parsedPath: ParsedPath, type: 1 | 2) => boolean;
 }
 
