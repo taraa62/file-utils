@@ -1,3 +1,5 @@
 src/
 .idea
 testSource
+*.ts
+!*.d.ts

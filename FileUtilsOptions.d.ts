@@ -9,7 +9,9 @@ export interface IFindOptions {
     includeName?: IFilterConsist;
     excludeName?: IFilterConsist;
     indexOfPath?: string;
-    iFind?: (parsedPath: ParsedPath, type: 1 | 2) => boolean;
+    inFolders?: string[];
+    IFind?: (parsedPath: ParsedPath, type: 1 | 2) => Promise<boolean>;
+    originFolder?: string; // ignore this param!
 }
 
 export interface IFilterConsist {
@@ -20,17 +22,17 @@ export interface IFilterConsist {
 }
 
 export interface IFilterNameFile {
-    [name: string]: 0 | 1 | 2
+    [name: string]: 0 | 1 | 2;
 }
 
-export interface IFindRes {
-    path: string;
+export interface IFindRes extends IReadFile{
     folders?: Map<string, IFindRes>;
     files?: IReadFile[];
 }
 
-export interface IReadFile {
-    name: string;
+export interface IReadFile extends  ParsedPath{
+    folder: string;
     path: string;
 }
+
 
