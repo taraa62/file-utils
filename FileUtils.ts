@@ -216,7 +216,7 @@ export default class FileUtils {
             return Promise.resolve(res);
         };
 
-        const checkInFolder = (folders: string[]): boolean => {
+        const checkInFolder = (folders: string[], def = true): boolean => {
             if (options.inFolders?.length) {
                 let isFind = false;
                 for (const folder of options.inFolders) {
@@ -227,7 +227,7 @@ export default class FileUtils {
                 }
                 return isFind;
             }
-            return true;
+            return def;
         };
 
         const checkFile = async (file: Dirent, subPath: string): Promise<void> => {
@@ -335,7 +335,7 @@ export default class FileUtils {
                         checkConsist(file.name, this.fileSymb(file), include, true) &&
                         !checkConsist(file.name, this.fileSymb(file), exclude, false)
                     ) {
-                        if (options.recursive || checkInFolder([file.name])) {
+                        if (options.recursive || checkInFolder([file.name], false)) {
                             await readDir(`${path}/${file.name}`);
                         }
                     }
