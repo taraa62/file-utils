@@ -13,7 +13,6 @@ import {
 import {ParsedPath} from 'path';
 import * as path from 'path';
 import * as readline from 'readline';
-import rimraf from 'rimraf';
 import {Stream} from 'stream';
 import {IFilterConsist, IFilterNameFile, IFindOptions, IFindRes, IReadFile} from "./FileUtilsOptions";
 
@@ -27,20 +26,17 @@ interface TConsist {
 export default class FileUtils {
     public static path = path;
 
-    public static rmDirRecursive(path: string): Promise<void> {
-        return new Promise((resolve, reject) => {
-            rimraf(path, (error: Error) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    resolve();
-                }
-            });
-        });
+    public static rmDir(path: string, recursive = false, maxRetries = 5, retryDelay = 100): Promise<void> {
+        return fsPromises.rmdir(path, {maxRetries, recursive, retryDelay})
     }
 
-    public static mkDirRecursive(paths: string[]): Promise<string> {
-        const lPath = path.resolve(process.cwd(), ...paths);
+    /**
+     * default: path.resolve(process.cwd(), ...paths)
+     * @param paths
+     */
+    public static mkDirRecursive(paths: string | string[], resolveCWD = false): Promise<string> {
+        paths = (paths instanceof Array) ? paths : [paths]
+        const lPath = resolveCWD ? path.resolve(process.cwd(), ...paths) : path.resolve(...paths);
         return fsPromises.mkdir(lPath, {recursive: true}).then(_ => lPath);
     }
 
