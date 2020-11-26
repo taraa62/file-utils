@@ -76,7 +76,7 @@ export default class FileUtils {
      */
     public static async forEachFiles(
         map: Map<string, IFindRes>,
-        callback: (file: IReadFile) => Promise<void>
+        callback: (file: IReadFile) => void | Promise<void>
     ): Promise<void> {
         if (!callback || !map) return;
         const check = async (item: IFindRes) => {
@@ -91,9 +91,12 @@ export default class FileUtils {
                 }
             }
         };
-        // @ts-ignore
         for (const [, folder] of map.entries()) {
-            await check(folder);
+            if (!folder.folders && !folder.files) {
+                await callback(folder);
+            } else {
+                await check(folder);
+            }
         }
     }
 
@@ -248,7 +251,11 @@ export default class FileUtils {
                 const isCluded = await checkName(info, file.isDirectory() ? 2 : 1);
                 if (isCluded) {
                     const folders = subPath.split(this.path.sep).filter(Boolean);
-                    if (!checkInFolder(folders)) return;
+                    const cFolder =
+                        options.isFolderLevel && file.isDirectory()
+                            ? [...folders, file.name]
+                            : folders;
+                    if (!checkInFolder(cFolder)) return;
                     if (!options.folderHierarchy) {
                         if (file.isDirectory()) {
                             if (options.isFolderLevel) {
@@ -357,31 +364,31 @@ export default class FileUtils {
         checkDuplicateFolder = false
     ): Promise<Map<string, string[]>> {
         const map: Map<string, string> = new Map<string, string>();
-        const dublicate: Map<string, string[]> = new Map<string, string[]>();
+        const duplicate: Map<string, string[]> = new Map<string, string[]>();
 
-        const checkDubl = (name: string, path: string) => {
+        const checkDupl = (name: string, path: string) => {
             if (!map.has(name)) {
                 map.set(name, path);
             } else {
-                if (!dublicate.has(name)) {
-                    dublicate.set(name, [map.get(name)!]);
+                if (!duplicate.has(name)) {
+                    duplicate.set(name, [map.get(name)!]);
                 }
-                dublicate.get(name)!.push(path);
+                duplicate.get(name)!.push(path);
             }
         };
         const checkPath = (folders: Map<string, IFindRes>) => {
             const check = (key: string, item: IFindRes) => {
                 if (checkDuplicateFolder) {
-                    checkDubl(key, item.path);
+                    checkDupl(key, item.path);
                 }
                 if (item.files && !checkDuplicateFolder) {
                     for (const file of item.files) {
-                        checkDubl(file.name, file.path);
+                        checkDupl(file.name, file.path);
                     }
                 }
                 if (item.folders) {
                     for (const folder of item.folders.values()) {
-                        check(key, folder);
+                        check(folder.name, folder);
                     }
                 }
             };
@@ -392,7 +399,7 @@ export default class FileUtils {
         for (const path of paths) {
             checkPath(await this.findFiles(path, options));
         }
-        return dublicate;
+        return duplicate;
     }
 
     private static fileSymb(file: Dirent): 1 | 2 {
