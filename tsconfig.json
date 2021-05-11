@@ -15,6 +15,6 @@
     "esModuleInterop": true,
     "newLine": "lf",
     "noUnusedLocals": true,
-    "preserveWatchOutput": true
+    "preserveWatchOutput": true,
   }
 }

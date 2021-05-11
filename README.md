@@ -2,92 +2,102 @@
 
 Utilities for working with files.
 
-* Remove and create files
+Files search:
+
+- extension
+
 ```ts
- await FileUtils.rmDirRecursive('/home/user/...')
- await FileUtils.mkDirRecursive(['home/user1', 'home/user2']);
+FSUtils.find('.', <FindOptions>{
+    filterExts: [
+        // new FindExtension(['*']),                // include all files, defauld method=equals
+        // new FindExtension(['json']),             // include all json files
+        new FindExtension(['on'], EFindMethod.endsWith),
+        {extensions: ['js', 'ts'], include: false, method: EFindMethod.equals},
+        {extensions: ['md'], include: true, method: EFindMethod.startsWith},
+    ]
+})
 ```
 
-* Options
+- filter by file name
+
 ```ts
-interface IFindOptions {
-    recursive?: boolean;
-    isFolderLevel?: boolean; // what files are we looking for? folder or file
-    extension?: string[];
-    notExtension?: string[];
-    folderHierarchy?: boolean;
-    includeName?: IFilterConsist;
-    excludeName?: IFilterConsist;
-    indexOfPath?: string;
-    inFolders?: string[];
-    IFind?: (parsedPath: ParsedPath, type: 1 | 2) => Promise<boolean>;
-}
+FSUtils.find('.', <FindOptions>{
+    filterNames: [
+        // new FindFileNames(['*'], EFindMethod.startsWith,  true),
+        // new FindFileNames(['pa', 'fs', 'fi'], EFindMethod.startsWith,  false),
+        new FindFileNames(['pa'], EFindMethod.startsWith, true),
+        // new FindFileNames(['pa', 'je', 'fs'], EFindMethod.startsWith,  true)
+        new FindFileNames(['config'], EFindMethod.endsWith, true),
+        new FindFileNames(['ign'], EFindMethod.indexOf, true),
+        new FindFileNames(['tsconfig'], EFindMethod.equals, false),
+        new FindFileNames(['pti'], EFindMethod.match, true),
+        new FindFileNames(['lock', 'util'], EFindMethod.match, false),
+    ]
+})
 ```
 
-* Find files 
-```ts
-    const findResult:Map<string, IFindRes> = await FileUtils.findFiles(testPath, {
-            recursive: true,
-            isFolderLevel: false,
-            extension: ['sql', 'js'],
-            notExtension: ['ts'],
-            folderHierarchy: true,
-            includeName: {
-                indexOf: {
-                    'aa': 1,
-                    'SQLFile': 1
-                },
-                endsWith: {
-                    'form': 1
-                }
-            },
-            excludeName: {
-                startsWith: {
-                    'sql_table': 1
-                },
-                indexOf: {
-                    "table": 2
-                },
-            },
-            iFind: ((path, file) => path.name.startsWith('sql')),
-            indexOfPath: 'my/super/folder',
-            inFolders?: ['my', 'super', 'foler']
+- filter by path folder
 
-        })
-```
-* Find duplicates
 ```ts
-FileUtils.findFileDuplicates(['/home'], {includeName:{startsWith:{user:1}, true}
-```
-** Iterate result
- ```ts
- 
-FileUtils.forEachFiles(findResult, (file=> console.log(file)))
-FileUtils.forEachFolders(findResult, (folder=> console.log(folder)))
- ```
-
-* Read file
-```ts
-const path = FileUtils.resolve(['test.txt']) // by default we do fs.resolve(process.pwd, 'test.txt)
-FileUtils.read(path)
-
-FileUtils.readLine(path, (er: Error | null, line: string | null) => console.log(line));
+FSUtils.find('.', <FindOptions>{
+    filterNames: [
+        new FindFileNames(['*'], EFindMethod.equals, false),
+    ],
+    filterFolders: [
+        new FindFolderNames(['coverage'], EFindMethod.equals, true)
+    ]
+})
 ```
 
-* Write file
+- recursion/slave/structure
+
 ```ts
-FileUtils.write(FileUtils.resolve(['test.txt']) , 'hello world')
-
-FileUtils.writeStreamToFile(path, request);
-
-const {writeTo, writeEnd, error} = FileUtils.writeChunkToFileSync(FileUtils.resolve(['test.txt']))
-if(!error){
-    error = writeTo('line1');                 
-    error = writeTo(['line2', 'line3']);                 
-    error = writeTo('line4');
-    error= writeEnd()
-    if(error)  console.error(error);
-} else console.error(error);  
+await FSUtils.find('./../pcu/', <FindOptions>{
+    recursive: true,
+    maxSlave: 1,  // max slave, start from folder pcu/src/
+    folderLevel: true  // result will be only as structure of folders
+})
 ```
 
+- manual filter file or folder
+
+```ts
+await FSUtils.find('./../pcu/', <FindOptions>{
+    recursive: true,
+    maxSlave: 3,
+    filter: (item => {
+        return Promise.resolve(item.dirent.isFile()); // filter only if it is a file.
+    })
+})
+```
+
+- foreach/files/folder
+
+```ts
+const map = await FSUtils.find('.', <FindOptions>{
+    recursive: true,
+    filterFolders: [
+        new FindFolderNames(['node_modules'], EFindMethod.equals, false)
+    ],
+});
+const files: string[] = [];
+await FSUtils.foreachFiles(map, file => {
+    files.push(file.fullPath)
+});
+const folders: string[] = [];
+await FSUtils.foreachFolders(map, folder => {
+    folders.push(folder.name)
+})
+```
+
+-duplicate
+
+```ts
+FSUtils.findFileDuplicates(['.'], <FindOptions>{
+    recursive: true,
+    filterFolders: [
+        new FindFolderNames(['node_modules'], EFindMethod.equals, false)
+    ],
+}, false /*(file / folder)*/);
+```
 
