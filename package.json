@@ -1,8 +1,8 @@
 {
-  "name": "file-utils",
+  "name": "fs-searching",
   "version": "1.0.8",
   "description": "Utilities for working with files.",
-  "main": "FileUtils.js",
+  "main": "FSUtils.js",
   "scripts": {
     "test": "ts-node ./test.ts"
   },
