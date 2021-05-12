@@ -90,7 +90,7 @@ await FSUtils.foreachFolders(map, folder => {
 })
 ```
 
--duplicate
+- duplicate files or folreds by name
 
 ```ts
 FSUtils.findFileDuplicates(['.'], <FindOptions>{
