@@ -16,7 +16,7 @@ Methods:
 - getUUID(version: 1 | 4): string
     // generate name from original and check exist file
 - genFileName(fileName: string, opt: IGenerateOpt = {}): string
-    // converting an interval from time to a string
+    // converting an interval from time to a string (ex: '2s 232ms')
 - timeConverter(startTime: number, endTime: number = Date.now()): string | number
 
 ----
