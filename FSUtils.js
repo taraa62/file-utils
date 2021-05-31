@@ -27,7 +27,14 @@ const FSOptions_1 = require("./FSOptions");
 const path = __importStar(require("path"));
 const fs_1 = require("fs");
 const readline_1 = __importDefault(require("readline"));
+const uuid = __importStar(require("uuid"));
 class FSUtils {
+    static randomString(size = 7, source = FSUtils.symb) {
+        let text = '';
+        for (let i = 0; i < size; i++)
+            text += source.charAt(Math.floor(Math.random() * source.length));
+        return text;
+    }
     static rm(path, recursive = false, maxRetries = 5, retryDelay = 100) {
         path = this.resolve([path]);
         return fs_1.promises.rmdir(path, { maxRetries, recursive, retryDelay });
@@ -45,137 +52,6 @@ class FSUtils {
     }
     static exist(path) {
         return fs_1.existsSync(path);
-    }
-    static async find(path, options) {
-        const result = new Map();
-        if (!(options instanceof FSOptions_1.FindOptions)) {
-            options = Object.assign(new FSOptions_1.FindOptions(), options);
-        }
-        options.check();
-        const root = FSUtils.resolve([path]);
-        const max = options.maxSlave < 0 ? Number.MAX_VALUE : options.maxSlave;
-        if (root) {
-            const getItem = (dirent, currPath, slave) => {
-                var _a;
-                const full = (_a = FSUtils.path.resolve(currPath, dirent.name)) === null || _a === void 0 ? void 0 : _a.toLowerCase();
-                const parsed = FSUtils.path.parse(full);
-                return {
-                    slave, dirent, parsed,
-                    parent: currPath,
-                    fullPath: full,
-                    name: dirent.name.toLowerCase(),
-                };
-            };
-            const addResult = (item) => {
-                const folders = item.parsed.dir.split(FSUtils.path.sep) || [];
-                if (folders.length) {
-                    folders.shift();
-                }
-                let dir, cDir = undefined;
-                dir = cDir = result.get(folders[0]);
-                if (cDir)
-                    folders.shift();
-                for (let folder of folders) {
-                    if (dir)
-                        cDir = dir.folders.get(folder);
-                    if (!cDir) {
-                        cDir = {
-                            name: folder, fullPath: item.parent,
-                            folders: new Map(), files: []
-                        };
-                        if (dir) {
-                            dir.folders.set(folder, cDir);
-                        }
-                        else {
-                            result.set(folder, cDir);
-                        }
-                        dir = cDir;
-                    }
-                    else {
-                        dir = cDir;
-                    }
-                }
-                if (dir && item.dirent.isFile() && !options.folderLevel) {
-                    dir.files.push(item);
-                }
-            };
-            const checkPath = async (item) => {
-                let isAdd = true;
-                if (options.folderLevel) {
-                    if (options.filterFolders.length && item.dirent.isDirectory()) {
-                        isAdd = FSOptions_1.FindFolderNames.checkFoldersName(options.filterFolders, item);
-                    }
-                }
-                else {
-                    if (options.filterExts.length) {
-                        isAdd = FSOptions_1.FindExtension.checkExtensions(options.filterExts, item);
-                    }
-                    if (isAdd) {
-                        if (options.filterNames.length && item.dirent.isFile()) {
-                            isAdd = FSOptions_1.FindFileNames.checkFileName(options.filterNames, item);
-                        }
-                    }
-                    if (isAdd) {
-                        if (options.filterFolders.length && item.dirent.isDirectory()) {
-                            isAdd = FSOptions_1.FindFolderNames.checkFoldersName(options.filterFolders, item);
-                        }
-                    }
-                    if (isAdd && options.filter) {
-                        isAdd = await options.filter(item);
-                    }
-                }
-                if (isAdd) {
-                    addResult(item);
-                }
-            };
-            const readFiles = async (currPath, slave) => {
-                if (slave > max)
-                    return;
-                const files = await fs_1.promises.readdir(currPath, { withFileTypes: true });
-                for (const dirent of files) {
-                    const item = getItem(dirent, currPath, slave);
-                    if (dirent.isFile() || dirent.isSymbolicLink()) {
-                        await checkPath(item);
-                    }
-                    else {
-                        if (dirent.isDirectory()) {
-                            const checkFolder = FSOptions_1.FindFolderNames.checkFoldersName(options.filterFolders, item, true);
-                            const next = options.filter ? checkFolder && await options.filter(item) : checkFolder;
-                            if (next) {
-                                if (options.recursive) {
-                                    await readFiles(`${currPath}${FSUtils.path.sep}${dirent.name}`, slave + 1);
-                                }
-                                else {
-                                    await checkPath(item);
-                                }
-                            }
-                        }
-                        else {
-                            console.error(dirent);
-                        }
-                    }
-                }
-            };
-            await readFiles(root, 0);
-            options.postEnd();
-            const folders = root.toLowerCase().split(FSUtils.path.sep).filter(v => v);
-            if (folders.length) {
-                let dir = result.get(folders[0]);
-                if (dir) {
-                    folders.shift();
-                    for (let folder of folders) {
-                        dir = dir.folders.get(folder);
-                        if (!dir) {
-                            return result;
-                        }
-                    }
-                    if (dir) {
-                        return new Map().set(dir.name, dir);
-                    }
-                }
-            }
-        }
-        return result;
     }
     static async foreachFiles(map, callback) {
         if (!callback || !map)
@@ -324,6 +200,197 @@ class FSUtils {
             return { error };
         }
     }
+    static async find(path, options) {
+        const result = new Map();
+        if (!(options instanceof FSOptions_1.FindOptions)) {
+            options = Object.assign(new FSOptions_1.FindOptions(), options);
+        }
+        options.check();
+        const root = FSUtils.resolve([path]);
+        const max = options.maxSlave < 0 ? Number.MAX_VALUE : options.maxSlave;
+        if (root) {
+            const getItem = (dirent, currPath, slave) => {
+                const full = FSUtils.path.resolve(currPath, dirent.name);
+                const parsed = FSUtils.path.parse(full);
+                return {
+                    slave, dirent, parsed,
+                    parent: currPath,
+                    fullPath: full,
+                    name: dirent.name,
+                };
+            };
+            const addResult = (item) => {
+                const folders = item.parsed.dir.split(FSUtils.path.sep) || [];
+                if (folders.length) {
+                    folders.shift();
+                }
+                let dir, cDir;
+                dir = cDir = result.get(folders[0]);
+                if (cDir)
+                    folders.shift();
+                for (let folder of folders) {
+                    if (dir)
+                        cDir = dir.folders.get(folder);
+                    if (!cDir) {
+                        cDir = {
+                            name: folder, fullPath: item.parent,
+                            folders: new Map(), files: []
+                        };
+                        if (dir) {
+                            dir.folders.set(folder, cDir);
+                        }
+                        else {
+                            result.set(folder, cDir);
+                        }
+                        dir = cDir;
+                    }
+                    else {
+                        dir = cDir;
+                    }
+                }
+                if (dir && item.dirent.isFile() && !options.folderLevel) {
+                    dir.files.push(item);
+                }
+            };
+            const checkPath = async (item) => {
+                let isAdd = true;
+                if (options.folderLevel) {
+                    if (options.filterFolders.length && item.dirent.isDirectory()) {
+                        isAdd = FSOptions_1.FindFolderNames.checkFoldersName(options.filterFolders, item);
+                    }
+                }
+                else {
+                    if (options.filterExts.length) {
+                        isAdd = FSOptions_1.FindExtension.checkExtensions(options.filterExts, item);
+                    }
+                    if (isAdd) {
+                        if (options.filterNames.length && item.dirent.isFile()) {
+                            isAdd = FSOptions_1.FindFileNames.checkFileName(options.filterNames, item);
+                        }
+                    }
+                    if (isAdd) {
+                        if (options.filterFolders.length && item.dirent.isDirectory()) {
+                            isAdd = FSOptions_1.FindFolderNames.checkFoldersName(options.filterFolders, item);
+                        }
+                    }
+                    if (isAdd && options.filter) {
+                        isAdd = await options.filter(item);
+                    }
+                }
+                if (isAdd) {
+                    addResult(item);
+                }
+            };
+            const readFiles = async (currPath, slave) => {
+                if (slave > max)
+                    return;
+                const files = await fs_1.promises.readdir(currPath, { withFileTypes: true });
+                for (const dirent of files) {
+                    const item = getItem(dirent, currPath, slave);
+                    if (dirent.isFile() || dirent.isSymbolicLink()) {
+                        await checkPath(item);
+                    }
+                    else {
+                        if (dirent.isDirectory()) {
+                            const checkFolder = FSOptions_1.FindFolderNames.checkFoldersName(options.filterFolders, item, true);
+                            const next = options.filter ? checkFolder && await options.filter(item) : checkFolder;
+                            if (next) {
+                                if (options.recursive) {
+                                    await readFiles(`${currPath}${FSUtils.path.sep}${dirent.name}`, slave + 1);
+                                }
+                                else {
+                                    await checkPath(item);
+                                }
+                            }
+                        }
+                        else {
+                            console.error(dirent);
+                        }
+                    }
+                }
+            };
+            await readFiles(root, 0);
+            options.postEnd();
+            const folders = root.split(FSUtils.path.sep).filter(v => v);
+            if (folders.length) {
+                let dir = result.get(folders[0]);
+                if (dir) {
+                    folders.shift();
+                    for (let folder of folders) {
+                        dir = dir.folders.get(folder);
+                        if (!dir) {
+                            return result;
+                        }
+                    }
+                    if (dir) {
+                        return new Map().set(dir.name, dir);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+    static getUUID(version = 4) {
+        // @ts-ignore
+        return uuid[`v${version}`]();
+    }
+    static genFileName(fileName, opt = {}) {
+        var _a, _b;
+        let path;
+        opt = opt !== null && opt !== void 0 ? opt : {};
+        opt.separator = (_a = opt.separator) !== null && _a !== void 0 ? _a : '_';
+        opt.side = (_b = opt.side) !== null && _b !== void 0 ? _b : 'r';
+        const getName = () => {
+            let subName;
+            switch (opt.type) {
+                case "uuid":
+                    subName = FSUtils.getUUID(opt.uuidVersion || 4);
+                    break;
+                case "val":
+                    subName = opt.tmpVal || 'tmp';
+                    break;
+                case "date":
+                    subName = new Date().toISOString();
+                    break;
+                default: {
+                    subName = FSUtils.randomString(opt.randLength || 6);
+                }
+            }
+            return opt.side === "r" ?
+                `${opt.offOriginName ? '' : fileName}${opt.offOriginName ? '' : opt.separator}${subName}`
+                : `${subName}${opt.offOriginName ? '' : opt.separator}${opt.offOriginName ? '' : fileName}`;
+        };
+        if (!opt.checkExistFile) {
+            return getName();
+        }
+        opt.rootDir = FSUtils.resolve([opt.rootDir || '']);
+        while (!path) {
+            const tmp = FSUtils.resolve([opt.rootDir, getName()]);
+            if (!FSUtils.exist(tmp) || opt.tmpVal) {
+                path = tmp;
+            }
+        }
+        return path;
+    }
+    static timeConverter(startTime, endTime = Date.now()) {
+        if (startTime > endTime) {
+            [startTime, endTime] = [endTime, startTime];
+        }
+        const time = new Date(endTime - startTime);
+        time.setMinutes(time.getMinutes() + time.getTimezoneOffset());
+        let res = '';
+        const add = (param, field) => {
+            if (param || param > 0) {
+                res += (res ? ' ' : '') + `${param}${field}`;
+            }
+        };
+        add(time.getHours(), 'h');
+        add(time.getMinutes(), 'm');
+        add(time.getSeconds(), 's');
+        add(time.getMilliseconds(), 'ms');
+        return res;
+    }
 }
 exports.FSUtils = FSUtils;
 FSUtils.path = path;
+FSUtils.symb = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

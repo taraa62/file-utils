@@ -1,4 +1,4 @@
-import {IItemFindFile} from './FSUtils.d'
+import {IFindOptions, IItemFindFile} from './FSUtils.d'
 
 export enum EFindMethod {
     startsWith = 'startsWith',
@@ -166,7 +166,7 @@ export class FindFolderNames extends AbstractFind {
     }
 }
 
-export class FindOptions {
+export class FindOptions implements IFindOptions{
     public recursive = false;
     public maxSlave = -1; // all
     public folderLevel = false; //return result only folders

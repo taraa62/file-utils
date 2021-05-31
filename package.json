@@ -1,6 +1,6 @@
 {
   "name": "fs-searching",
-  "version": "1.0.8",
+  "version": "1.0.10",
   "description": "Utilities for working with files.",
   "main": "FSUtils.js",
   "scripts": {
@@ -15,7 +15,9 @@
   },
   "keywords": [
     "file-system",
-    "file-utils"
+    "file-utils",
+    "search",
+    "find"
   ],
   "author": "taraa62",
   "license": "ISC",
@@ -27,8 +29,11 @@
     "ts-jest": "^26.4.4",
     "@types/chai": "^4.2.12",
     "chai": "^4.2.0",
-    "@types/node": "^14.14.10"
+    "@types/node": "^14.14.10",
+    "@types/uuid": "^8.3.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "uuid": "^8.3.2"
+  },
   "homepage": "https://github.com/taraa62/file-utils#readme"
 }

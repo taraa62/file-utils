@@ -1,5 +1,5 @@
 import {FindExtension, FindFileNames, FindFolderNames, FindOptions} from "./FSOptions";
-import {IFindResult, IItemFindFile} from './FSUtils.d'
+import {IFindResult, IGenerateOpt, IItemFindFile} from './FSUtils.d'
 import * as path from 'path';
 import {
     appendFileSync,
@@ -15,10 +15,21 @@ import {
 } from "fs";
 import {Stream} from "stream";
 import readline from "readline";
+import * as uuid from 'uuid';
 
 
 export class FSUtils {
     public static path = path;
+
+    private static readonly symb: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+    public static randomString(size: number = 7, source: string = FSUtils.symb): string {
+        let text = '';
+        for (let i = 0; i < size; i++)
+            text += source.charAt(Math.floor(Math.random() * source.length));
+
+        return text;
+    }
 
     public static rm(path: string, recursive = false, maxRetries = 5, retryDelay = 100): Promise<void> {
         path = this.resolve([path]);
@@ -41,138 +52,6 @@ export class FSUtils {
 
     public static exist(path: string): boolean {
         return existsSync(path);
-    }
-
-    public static async find(
-        path: string,
-        options: FindOptions
-    ): Promise<Map<string, IFindResult>> {
-        const result: Map<string, IFindResult> = new Map<string, IFindResult>();
-
-        if (!(options instanceof FindOptions)) {
-            options = Object.assign(new FindOptions(), options);
-        }
-        options.check();
-
-        const root = FSUtils.resolve([path]);
-        const max = options.maxSlave < 0 ? Number.MAX_VALUE : options.maxSlave;
-        if (root) {
-            const getItem = (dirent: Dirent, currPath: string, slave: number): IItemFindFile => {
-                const full = FSUtils.path.resolve(currPath, dirent.name)?.toLowerCase();
-                const parsed = FSUtils.path.parse(full);
-
-                return <IItemFindFile>{
-                    slave, dirent, parsed,
-                    parent: currPath,
-                    fullPath: full,
-                    name: dirent.name.toLowerCase(),
-                }
-            }
-
-            const addResult = (item: IItemFindFile) => {
-                const folders = item.parsed.dir.split(FSUtils.path.sep) || [];
-                if (folders.length) {
-                    folders.shift()
-                }
-                let dir, cDir: IFindResult | undefined;
-                dir = cDir = result.get(folders[0]);
-                if (cDir) folders.shift();
-                for (let folder of folders) {
-                    if (dir) cDir = dir.folders.get(folder);
-                    if (!cDir) {
-                        cDir = {
-                            name: folder, fullPath: item.parent,
-                            folders: new Map(), files: []
-                        }
-                        if (dir) {
-                            dir.folders.set(folder, cDir);
-                        } else {
-                            result.set(folder, cDir);
-                        }
-                        dir = cDir;
-                    } else {
-                        dir = cDir;
-                    }
-                }
-                if (dir && item.dirent.isFile() && !options.folderLevel) {
-                    dir.files!.push(item)
-                }
-            }
-            const checkPath = async (item: IItemFindFile) => {
-                let isAdd = true;
-                if (options.folderLevel) {
-                    if (options.filterFolders.length && item.dirent.isDirectory()) {
-                        isAdd = FindFolderNames.checkFoldersName(options.filterFolders, item);
-                    }
-                } else {
-                    if (options.filterExts.length) {
-                        isAdd = FindExtension.checkExtensions(options.filterExts, item);
-                    }
-                    if (isAdd) {
-                        if (options.filterNames.length && item.dirent.isFile()) {
-                            isAdd = FindFileNames.checkFileName(options.filterNames, item)
-                        }
-                    }
-                    if (isAdd) {
-                        if (options.filterFolders.length && item.dirent.isDirectory()) {
-                            isAdd = FindFolderNames.checkFoldersName(options.filterFolders, item);
-                        }
-                    }
-                    if (isAdd && options.filter) {
-                        isAdd = await options.filter(item);
-                    }
-                }
-                if (isAdd) {
-                    addResult(item);
-                }
-            }
-            const readFiles = async (currPath: string, slave: number) => {
-                if (slave > max) return;
-
-                const files = await fsPromises.readdir(currPath, {withFileTypes: true});
-                for (const dirent of files) {
-                    const item = getItem(dirent, currPath, slave);
-                    if (dirent.isFile() || dirent.isSymbolicLink()) {
-                        await checkPath(item);
-                    } else {
-                        if (dirent.isDirectory()) {
-                            const checkFolder = FindFolderNames.checkFoldersName(options.filterFolders, item, true);
-                            const next = options.filter ? checkFolder && await options.filter(item) : checkFolder;
-                            if (next) {
-                                if (options.recursive) {
-                                    await readFiles(`${currPath}${FSUtils.path.sep}${dirent.name}`, slave + 1);
-                                } else {
-                                    await checkPath(item);
-                                }
-                            }
-                        } else {
-                            console.error(dirent);
-                        }
-                    }
-                }
-            }
-
-            await readFiles(root, 0);
-            options.postEnd();
-
-            const folders = root.toLowerCase().split(FSUtils.path.sep).filter(v => v);
-            if (folders.length) {
-                let dir = result.get(folders[0]);
-                if (dir) {
-                    folders.shift();
-                    for (let folder of folders) {
-                        dir = dir!.folders.get(folder);
-                        if (!dir) {
-                            return result;
-                        }
-                    }
-                    if (dir) {
-                        return new Map<string, IFindResult>().set(dir!.name, dir!);
-                    }
-                }
-            }
-        }
-        return result;
     }
 
     public static async foreachFiles(
@@ -341,5 +220,206 @@ export class FSUtils {
         } catch (error) {
             return {error};
         }
+    }
+
+    public static async find(
+        path: string,
+        options: FindOptions
+    ): Promise<Map<string, IFindResult>> {
+        const result: Map<string, IFindResult> = new Map<string, IFindResult>();
+
+        if (!(options instanceof FindOptions)) {
+            options = Object.assign(new FindOptions(), options);
+        }
+        options.check();
+
+        const root = FSUtils.resolve([path]);
+        const max = options.maxSlave < 0 ? Number.MAX_VALUE : options.maxSlave;
+        if (root) {
+            const getItem = (dirent: Dirent, currPath: string, slave: number): IItemFindFile => {
+                const full = FSUtils.path.resolve(currPath, dirent.name);
+                const parsed = FSUtils.path.parse(full);
+
+                return <IItemFindFile>{
+                    slave, dirent, parsed,
+                    parent: currPath,
+                    fullPath: full,
+                    name: dirent.name,
+                }
+            }
+
+            const addResult = (item: IItemFindFile) => {
+                const folders = item.parsed.dir.split(FSUtils.path.sep) || [];
+                if (folders.length) {
+                    folders.shift()
+                }
+                let dir, cDir: IFindResult | undefined;
+                dir = cDir = result.get(folders[0]);
+                if (cDir) folders.shift();
+                for (let folder of folders) {
+                    if (dir) cDir = dir.folders.get(folder);
+                    if (!cDir) {
+                        cDir = {
+                            name: folder, fullPath: item.parent,
+                            folders: new Map(), files: []
+                        }
+                        if (dir) {
+                            dir.folders.set(folder, cDir);
+                        } else {
+                            result.set(folder, cDir);
+                        }
+                        dir = cDir;
+                    } else {
+                        dir = cDir;
+                    }
+                }
+                if (dir && item.dirent.isFile() && !options.folderLevel) {
+                    dir.files!.push(item)
+                }
+            }
+            const checkPath = async (item: IItemFindFile) => {
+                let isAdd = true;
+                if (options.folderLevel) {
+                    if (options.filterFolders.length && item.dirent.isDirectory()) {
+                        isAdd = FindFolderNames.checkFoldersName(options.filterFolders, item);
+                    }
+                } else {
+                    if (options.filterExts.length) {
+                        isAdd = FindExtension.checkExtensions(options.filterExts, item);
+                    }
+                    if (isAdd) {
+                        if (options.filterNames.length && item.dirent.isFile()) {
+                            isAdd = FindFileNames.checkFileName(options.filterNames, item)
+                        }
+                    }
+                    if (isAdd) {
+                        if (options.filterFolders.length && item.dirent.isDirectory()) {
+                            isAdd = FindFolderNames.checkFoldersName(options.filterFolders, item);
+                        }
+                    }
+                    if (isAdd && options.filter) {
+                        isAdd = await options.filter(item);
+                    }
+                }
+                if (isAdd) {
+                    addResult(item);
+                }
+            }
+            const readFiles = async (currPath: string, slave: number) => {
+                if (slave > max) return;
+
+                const files = await fsPromises.readdir(currPath, {withFileTypes: true});
+                for (const dirent of files) {
+                    const item = getItem(dirent, currPath, slave);
+                    if (dirent.isFile() || dirent.isSymbolicLink()) {
+                        await checkPath(item);
+                    } else {
+                        if (dirent.isDirectory()) {
+                            const checkFolder = FindFolderNames.checkFoldersName(options.filterFolders, item, true);
+                            const next = options.filter ? checkFolder && await options.filter(item) : checkFolder;
+                            if (next) {
+                                if (options.recursive) {
+                                    await readFiles(`${currPath}${FSUtils.path.sep}${dirent.name}`, slave + 1);
+                                } else {
+                                    await checkPath(item);
+                                }
+                            }
+                        } else {
+                            console.error(dirent);
+                        }
+                    }
+                }
+            }
+
+            await readFiles(root, 0);
+            options.postEnd();
+
+            const folders = root.split(FSUtils.path.sep).filter(v => v);
+            if (folders.length) {
+                let dir = result.get(folders[0]);
+                if (dir) {
+                    folders.shift();
+                    for (let folder of folders) {
+                        dir = dir!.folders.get(folder);
+                        if (!dir) {
+                            return result;
+                        }
+                    }
+                    if (dir) {
+                        return new Map<string, IFindResult>().set(dir!.name, dir!);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    public static getUUID(version: 1 | 4 = 4): string {
+        // @ts-ignore
+        return uuid[`v${version}`]();
+    }
+
+    public static genFileName(fileName: string, opt: IGenerateOpt = {}): string {
+        let path;
+        opt = opt ?? {};
+        opt.separator = opt.separator ?? '_';
+        opt.side = opt.side ?? 'r';
+
+
+        const getName = (): string => {
+            let subName: string;
+            switch (opt.type) {
+                case "uuid":
+                    subName = FSUtils.getUUID(opt.uuidVersion || 4);
+                    break;
+                case "val":
+                    subName = opt.tmpVal || 'tmp'
+                    break;
+                case "date":
+                    subName = new Date().toISOString();
+                    break;
+                default: {
+                    subName = FSUtils.randomString(opt.randLength || 6);
+                }
+            }
+
+            return opt.side === "r" ?
+                `${opt.offOriginName ? '' : fileName}${opt.offOriginName ? '' : opt.separator}${subName}`
+                : `${subName}${opt.offOriginName ? '' : opt.separator}${opt.offOriginName ? '' : fileName}`
+        }
+        if (!opt.checkExistFile) {
+            return getName();
+        }
+        opt.rootDir = FSUtils.resolve([opt.rootDir || '']);
+        while (!path) {
+            const tmp = FSUtils.resolve([opt.rootDir, getName()]);
+            if (!FSUtils.exist(tmp) || opt.tmpVal) {
+                path = tmp;
+            }
+        }
+        return path;
+    }
+
+    public static timeConverter(
+        startTime: number,
+        endTime: number = Date.now()
+    ): string | number {
+        if (startTime > endTime) {
+            [startTime, endTime] = [endTime, startTime];
+        }
+        const time = new Date(endTime - startTime);
+        time.setMinutes(time.getMinutes() + time.getTimezoneOffset());
+
+        let res: string | number = '';
+        const add = (param: number, field: string) => {
+            if (param || param > 0) {
+                res += (res ? ' ' : '') + `${param}${field}`;
+            }
+        };
+        add(time.getHours(), 'h');
+        add(time.getMinutes(), 'm');
+        add(time.getSeconds(), 's');
+        add(time.getMilliseconds(), 'ms');
+        return res;
     }
 }

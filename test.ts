@@ -55,7 +55,7 @@ describe('init', () => {
                 return Promise.resolve(item.dirent.isFile());
             })
         })
-        console.log(files);
+        console.log(files.get('pcu')!.files[0]);
     })
     test.skip('folder level', async () => {
         const files = await FSUtils.find('./../pcu/', <FindOptions>{
@@ -101,4 +101,19 @@ describe('init', () => {
 
         console.log(map);
     });
+    test('generate tmp file', async () => {
+        const tmp = FSUtils.genFileName('example.txt', {
+            type:"uuid",
+            uuidVersion:4,
+            side:"l",
+            separator:'===',
+        })
+        console.log(tmp);
+
+    })
+
+    test('time convertor', async () => {
+
+        console.log(FSUtils.timeConverter(450, 6685));
+    })
 })

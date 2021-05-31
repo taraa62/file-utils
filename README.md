@@ -2,8 +2,40 @@
 
 Utilities for working with files.
 
-Files search:
+Methods:
+    // generate random string from string
+- randomString(size: number = 7, source?: string)
+    // find file(s) /folder(s)
+- find(path: string, options: FindOptions): Promise<Map<string, IFindResult>>
+    // iterate files /folders
+- foreachFiles(map: Map<string, IFindResult>, callback: (file: IItemFindFile) => void | Promise<void>): Promise<void>
+- foreachFolders(map: Map<string, IFindResult>, callback: (file: IItemFindFile) => void | Promise<void>): Promise<void>
+    //find duplicate files/folders (duplicate names)
+- findFileDuplicates(paths: string[],options: FindOptions,checkDuplicateFolder = false): Promise<Map<string, string[]>>
+    // generate uuid
+- getUUID(version: 1 | 4): string
+    // generate name from original and check exist file
+- genFileName(fileName: string, opt: IGenerateOpt = {}): string
+    // converting an interval from time to a string
+- timeConverter(startTime: number, endTime: number = Date.now()): string | number
 
+----
+Files search:
+```ts
+FindOptions
+interface IFindOptions {
+    recursive: boolean;
+    maxSlave: number; // default = -1 - all child folders
+    folderLevel: boolean; //return result only folders
+
+    filterExts: FindExtension[];
+    filterNames: FindFileNames[];
+    filterFolders: FindFolderNames[];
+
+    filter?: (item: IItemFindFile) => Promise<boolean>; // You can tell whether to add an item to the result or not
+}
+
+```
 - extension
 
 ```ts
@@ -90,7 +122,7 @@ await FSUtils.foreachFolders(map, folder => {
 })
 ```
 
--duplicate
+- duplicate
 
 ```ts
 FSUtils.findFileDuplicates(['.'], <FindOptions>{
@@ -100,4 +132,31 @@ FSUtils.findFileDuplicates(['.'], <FindOptions>{
     ],
 }, false /*(file / folder)*/);
 ```
+
+- genFileName
+```ts
+interface IGenerateOpt {
+    checkExistFile?: boolean;         // if true, there is resolved with process.cwd()
+    rootDir?: string;                 // if checkExistFile=true && !rootDir, rootDir=process.cwd()
+
+    type?: 'uuid' | 'date' | 'random' | 'val' // default 'uuid'
+    offOriginName?: boolean;          //default false
+    tmpVal?: string;
+
+    randLength?: number;              //default 6
+    uuidVersion?: 1 | 4;              //default 4
+
+    separator?: string;               //default '_'
+    side?: 'r' | 'l';                 //right|left default 'r'
+}
+FSUtils.genFileName('example.txt', {
+    type:"uuid",
+    uuidVersion:4,
+    side:"l",
+    separator:'===',
+})
+// console.log
+//4aa642a0-6a94-4bfb-a2d6-de3050d8c309===example.txt
+```
+
 
